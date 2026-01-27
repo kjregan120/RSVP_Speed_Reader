@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RSVP Reader Prototype (Pivot Letter + Chunking + Smart Timing + Quiz)</title>
+  <style>
+    :root{
+      --bg:#000;
+      --fg:#fff;
+      --muted:#b8b8b8;
+      --card:#0f0f0f;
+      --border:#242424;
+      --accent:#4aa3ff;
+      --pivot:#ff4aa3;
+      --ok:#55d17a;
+      --warn:#ffcc66;
+      --bad:#ff6b6b;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      --readerFont: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:var(--font);
+      overflow:hidden;
+    }
+
+    /* Reader stage */
+    #stage{
+      position:relative;
+      width:100%;
+      height:100%;
+      display:grid;
+      grid-template-rows: 1fr auto;
+    }
+
+    #reader{
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+      user-select:none;
+    }
+
+    #wordBox{
+      font-family:var(--readerFont);
+      font-weight:700;
+      font-size:clamp(34px, 6vw, 88px);
+      letter-spacing:0.5px;
+      line-height:1.1;
+      text-align:center;
+      padding:10px 14px;
+      border-radius:16px;
+      border:1px solid transparent;
+      max-width:min(1100px, 95vw);
+      word-break:break-word;
+    }
+
+    /* A subtle anchor line */
+    #anchorLine{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform:translate(-50%, -50%);
+      width:min(820px, 92vw);
+      height:1px;
+      background:rgba(255,255,255,0.08);
+      pointer-events:none;
+    }
+
+    #hud{
+      position:absolute;
+      top:14px;
+      left:14px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-size:13px;
+      color:var(--muted);
+      background:rgba(0,0,0,0.35);
+      border:1px solid rgba(255,255,255,0.08);
+      padding:8px 10px;
+      border-radius:12px;
+      backdrop-filter: blur(6px);
+    }
+    #hud b{ color:var(--fg); font-weight:700; }
+    .pill{
+      border:1px solid rgba(255,255,255,0.12);
+      padding:2px 8px;
+      border-radius:999px;
+      color:var(--muted);
+    }
+
+    /* Controls */
+    #panel{
+      width:100%;
+      border-top:1px solid rgba(255,255,255,0.10);
+      background:linear-gradient(to top, rgba(15,15,15,0.92), rgba(0,0,0,0.55));
+      padding:14px 14px 16px;
+      display:grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap:12px;
+      align-items:start;
+    }
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:12px;
+      min-height:120px;
+      overflow:hidden;
+    }
+
+    .card h3{
+      margin:0 0 8px 0;
+      font-size:13px;
+      color:var(--muted);
+      font-weight:650;
+      letter-spacing:0.02em;
+      text-transform:uppercase;
+    }
+
+    textarea{
+      width:100%;
+      height:120px;
+      resize:none;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:#050505;
+      color:var(--fg);
+      padding:10px;
+      outline:none;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+      line-height:1.35;
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .row label{
+      font-size:12px;
+      color:var(--muted);
+      display:flex;
+      align-items:center;
+      gap:6px;
+      white-space:nowrap;
+    }
+
+    input[type="range"]{ width:180px; }
+    input[type="number"]{
+      width:88px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:#050505;
+      color:var(--fg);
+      padding:6px 8px;
+      outline:none;
+    }
+    select{
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:#050505;
+      color:var(--fg);
+      padding:6px 8px;
+      outline:none;
+    }
+    input[type="color"]{
+      width:38px; height:28px;
+      padding:0; border:none; background:transparent;
+    }
+
+    button{
+      border:none;
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:700;
+      color:#0b0b0b;
+      background:var(--accent);
+      cursor:pointer;
+      transition: transform .06s ease, filter .12s ease;
+    }
+    button:hover{ filter:brightness(1.07); }
+    button:active{ transform:translateY(1px); }
+    button.secondary{
+      background:#1b1b1b;
+      color:var(--fg);
+      border:1px solid rgba(255,255,255,0.14);
+    }
+    button.danger{
+      background:#ff5b5b;
+      color:#0b0b0b;
+    }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:8px;
+      line-height:1.35;
+    }
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.12);
+      border-bottom-color:rgba(255,255,255,0.18);
+      padding:1px 6px;
+      border-radius:8px;
+      color:var(--fg);
+      font-size:11px;
+    }
+
+    /* Quiz overlay */
+    #overlay{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      background:rgba(0,0,0,0.68);
+      backdrop-filter: blur(6px);
+      padding:18px;
+    }
+    #overlay.show{ display:flex; }
+
+    #quiz{
+      width:min(820px, 96vw);
+      border-radius:18px;
+      background:#0b0b0b;
+      border:1px solid rgba(255,255,255,0.14);
+      padding:14px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.55);
+    }
+    #quiz header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    #quiz header h2{
+      margin:0;
+      font-size:16px;
+      letter-spacing:0.01em;
+    }
+    #quiz .q{
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:14px;
+      padding:10px;
+      margin:10px 0;
+      background:rgba(255,255,255,0.03);
+    }
+    #quiz .q p{
+      margin:0 0 8px 0;
+      color:var(--fg);
+      font-size:14px;
+      line-height:1.35;
+    }
+    #quiz .choices{
+      display:grid;
+      gap:8px;
+    }
+    .choice{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding:8px 10px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.12);
+      background:rgba(0,0,0,0.25);
+      cursor:pointer;
+      user-select:none;
+    }
+    .choice:hover{ border-color: rgba(255,255,255,0.22); }
+    .choice input{ margin:0; }
+    #quiz footer{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-top:10px;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    #score{
+      font-size:13px;
+      color:var(--muted);
+    }
+    .tag{
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,0.14);
+      background:rgba(255,255,255,0.04);
+      color:var(--muted);
+      font-size:12px;
+    }
+
+    @media (max-width: 980px){
+      #panel{ grid-template-columns: 1fr; }
+      textarea{ height:110px; }
+      #wordBox{ padding:8px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <div id="reader">
+      <div id="anchorLine"></div>
+      <div id="hud">
+        <span class="pill">WPM: <b id="hudWpm">320</b></span>
+        <span class="pill">Chunk: <b id="hudChunk">1</b></span>
+        <span class="pill">Idx: <b id="hudIdx">0</b>/<span id="hudTotal">0</span></span>
+        <span class="pill">State: <b id="hudState">Paused</b></span>
+      </div>
+      <div id="wordBox" aria-live="polite">Press “Start”</div>
+
+      <div id="overlay" role="dialog" aria-modal="true" aria-label="Comprehension check">
+        <div id="quiz">
+          <header>
+            <h2>Comprehension check</h2>
+            <button id="closeQuiz" class="secondary" type="button">Close</button>
+          </header>
+          <div id="quizBody"></div>
+          <footer>
+            <div id="score">Answer the questions, then submit.</div>
+            <div class="row">
+              <button id="submitQuiz" type="button">Submit</button>
+              <button id="restart" class="secondary" type="button">Restart Reading</button>
+            </div>
+          </footer>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel">
+      <div class="card">
+        <h3>Text</h3>
+        <textarea id="textInput" spellcheck="false">
+RSVP (rapid serial visual presentation) shows words in one place so your eyes don’t need to move much. That can increase raw words-per-minute for light reading. But deep comprehension can suffer, especially if you need to reread, scan, or compare ideas across sentences.
+
+This prototype adds a pivot letter to anchor your gaze, smart pauses at punctuation, and controls for chunk size, speed ramping, and instant rewind. At the end, it can generate a quick comprehension quiz using simple “fill the blank” questions.
+        </textarea>
+
+        <div class="tiny">
+          Tips: Use short paragraphs for best comfort. The reader will treat blank lines as paragraph breaks.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Playback</h3>
+        <div class="row" style="margin-bottom:10px;">
+          <button id="startBtn" type="button">Start</button>
+          <button id="pauseBtn" class="secondary" type="button">Pause</button>
+          <button id="resetBtn" class="danger" type="button">Reset</button>
+          <button id="quizToggleBtn" class="secondary" type="button">Quiz: Off</button>
+        </div>
+
+        <div class="row" style="margin-bottom:10px;">
+          <label>WPM
+            <input id="wpmRange" type="range" min="10" max="900" value="320" />
+            <input id="wpmNum" type="number" min="10" max="2000" value="320" />
+          </label>
+
+          <label>Chunk
+            <select id="chunkSelect">
+              <option value="1">1 word</option>
+              <option value="2">2 words</option>
+              <option value="3">3 words</option>
+            </select>
+          </label>
+
+          <label>Rewind/Forward
+            <select id="jumpSelect">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+            <span class="tag">words</span>
+          </label>
+        </div>
+
+        <div class="row" style="margin-bottom:10px;">
+          <label>Ramp mode
+            <select id="rampMode">
+              <option value="off" selected>Off</option>
+              <option value="easy">Easy (+10 wpm / min)</option>
+              <option value="medium">Medium (+20 wpm / min)</option>
+              <option value="hard">Hard (+40 wpm / min)</option>
+            </select>
+          </label>
+
+          <label>Max WPM
+            <input id="maxWpmNum" type="number" min="10" max="3000" value="700" />
+          </label>
+        </div>
+
+        <div class="tiny">
+          Hotkeys: <span class="kbd">Space</span> play/pause •
+          <span class="kbd">←</span>/<span class="kbd">→</span> jump •
+          <span class="kbd">↑</span>/<span class="kbd">↓</span> WPM •
+          <span class="kbd">Q</span> quiz toggle •
+          <span class="kbd">R</span> reset
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Visual + Timing</h3>
+
+        <div class="row" style="margin-bottom:10px;">
+          <label>Pivot color
+            <input id="pivotColor" type="color" value="#ff4aa3" />
+          </label>
+
+          <label>Pivot position
+            <select id="pivotPos">
+              <option value="spritz" selected>Spritz-ish (~40%)</option>
+              <option value="center">Center</option>
+              <option value="custom">Custom %</option>
+            </select>
+          </label>
+
+          <label id="pivotPctWrap" style="display:none;">%
+            <input id="pivotPct" type="number" min="10" max="80" value="40" />
+          </label>
+        </div>
+
+        <div class="row" style="margin-bottom:10px;">
+          <label>Punctuation pause
+            <select id="punctMode">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+
+          <label>Long-word slowdown
+            <select id="longMode">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+
+          <label>Paragraph pause
+            <select id="paraMode">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="tiny">
+          Smart timing is where RSVP becomes usable: longer pauses at punctuation + paragraph breaks, and slight extra time for long words.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================
+    // Utilities
+    // =========================
+    const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
+    const isWordLike = (t) => /^[A-Za-z0-9][A-Za-z0-9’'’-]*$/.test(t);
+
+    function splitIntoTokens(text){
+      // Keep paragraph breaks as a token.
+      const norm = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const blocks = norm.split(/\n{2,}/); // blank-line paragraphs
+      const tokens = [];
+
+      for (let b = 0; b < blocks.length; b++){
+        const block = blocks[b].trim();
+        if (!block) continue;
+
+        // Split into words + punctuation (keeps punctuation as separate tokens if standalone).
+        // Also keep apostrophes/hyphens inside words.
+        const parts = block
+          .replace(/\s+/g, " ")
+          .match(/[A-Za-z0-9][A-Za-z0-9’'’-]*|[^\sA-Za-z0-9]/g) || [];
+
+        for (const p of parts){
+          tokens.push(p);
+        }
+        if (b !== blocks.length - 1) tokens.push("__PARA__");
+      }
+      return tokens;
+    }
+
+    function tokensToWords(tokens){
+      // Convert tokens into a list of "word units" for RSVP stepping.
+      // We keep punctuation attached to the previous word when it makes sense
+      // so the display "word" can end with punctuation, enabling smart pauses.
+      const out = [];
+      for (let i = 0; i < tokens.length; i++){
+        const t = tokens[i];
+
+        if (t === "__PARA__"){
+          out.push({ text: "", isPara: true });
+          continue;
+        }
+
+        if (isWordLike(t)){
+          out.push({ text: t, isPara: false });
+          continue;
+        }
+
+        // punctuation: attach to previous non-para item if possible, else stand alone
+        if (out.length > 0 && !out[out.length - 1].isPara && out[out.length - 1].text){
+          out[out.length - 1].text += t;
+        } else {
+          out.push({ text: t, isPara: false });
+        }
+      }
+      return out;
+    }
+
+    function choosePivotIndex(word, mode, customPct){
+      const clean = word.replace(/[^A-Za-z0-9]/g, "");
+      const L = clean.length;
+      if (L <= 1) return 0;
+
+      if (mode === "center"){
+        return Math.floor((L - 1) / 2);
+      }
+      if (mode === "custom"){
+        const pct = clamp(Number(customPct || 40), 10, 80) / 100;
+        return clamp(Math.round(L * pct) - 1, 0, L - 1);
+      }
+      // spritz-ish: roughly 40% in; adjust for short words
+      // Common heuristic: for 1-5 letters pivot is earlier, then later as it grows.
+      if (L <= 5) return 1;
+      if (L <= 9) return 2;
+      if (L <= 13) return 3;
+      return 4;
+    }
+
+    function renderWordWithPivot(word, pivotColor, pivotMode, pivotPct){
+      // Render a single word with one "pivot" letter colored.
+      // If word contains punctuation, keep punctuation uncolored.
+      const match = word.match(/^([A-Za-z0-9’'’-]+)(.*)$/);
+      const core = match ? match[1] : word;
+      const tail = match ? match[2] : "";
+
+      const clean = core.replace(/[^A-Za-z0-9]/g, "");
+      if (!clean.length){
+        return `<span>${escapeHtml(word)}</span>`;
+      }
+
+      // Find the pivot index in the clean string, then map to core index.
+      const pivotCleanIdx = choosePivotIndex(core, pivotMode, pivotPct);
+      // Map: iterate core chars and count alnum
+      let alnumCount = 0;
+      let pivotCoreIdx = 0;
+      for (let i = 0; i < core.length; i++){
+        if (/[A-Za-z0-9]/.test(core[i])){
+          if (alnumCount === pivotCleanIdx){
+            pivotCoreIdx = i;
+            break;
+          }
+          alnumCount++;
+        }
+        pivotCoreIdx = i;
+      }
+
+      const before = core.slice(0, pivotCoreIdx);
+      const pivot = core[pivotCoreIdx] || core[0];
+      const after  = core.slice(pivotCoreIdx + 1);
+
+      return `<span>${escapeHtml(before)}<span style="color:${pivotColor}">${escapeHtml(pivot)}</span>${escapeHtml(after)}${escapeHtml(tail)}</span>`;
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function endsWithStrongPunct(s){
+      return /[.!?…]+$/.test(s);
+    }
+    function endsWithMediumPunct(s){
+      return /[,;:]+$/.test(s);
+    }
+    function endsWithDash(s){
+      return /[-–—]+$/.test(s);
+    }
+    function coreWordLength(s){
+      const core = (s.match(/^([A-Za-z0-9’'’-]+)/)?.[1] || s);
+      const clean = core.replace(/[^A-Za-z0-9]/g, "");
+      return clean.length;
+    }
+
+    // =========================
+    // State
+    // =========================
+    const els = {
+      wordBox: document.getElementById("wordBox"),
+      hudWpm: document.getElementById("hudWpm"),
+      hudChunk: document.getElementById("hudChunk"),
+      hudIdx: document.getElementById("hudIdx"),
+      hudTotal: document.getElementById("hudTotal"),
+      hudState: document.getElementById("hudState"),
+
+      textInput: document.getElementById("textInput"),
+
+      startBtn: document.getElementById("startBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      quizToggleBtn: document.getElementById("quizToggleBtn"),
+
+      wpmRange: document.getElementById("wpmRange"),
+      wpmNum: document.getElementById("wpmNum"),
+      chunkSelect: document.getElementById("chunkSelect"),
+      jumpSelect: document.getElementById("jumpSelect"),
+
+      rampMode: document.getElementById("rampMode"),
+      maxWpmNum: document.getElementById("maxWpmNum"),
+
+      pivotColor: document.getElementById("pivotColor"),
+      pivotPos: document.getElementById("pivotPos"),
+      pivotPctWrap: document.getElementById("pivotPctWrap"),
+      pivotPct: document.getElementById("pivotPct"),
+
+      punctMode: document.getElementById("punctMode"),
+      longMode: document.getElementById("longMode"),
+      paraMode: document.getElementById("paraMode"),
+
+      overlay: document.getElementById("overlay"),
+      quizBody: document.getElementById("quizBody"),
+      submitQuiz: document.getElementById("submitQuiz"),
+      closeQuiz: document.getElementById("closeQuiz"),
+      restart: document.getElementById("restart"),
+      score: document.getElementById("score"),
+    };
+
+    const app = {
+      words: [],
+      idx: 0,             // index into words array (word units, includes para markers)
+      playing: false,
+      timer: null,
+      quizEnabled: false,
+      rampTimer: null,
+      wpm: 320,
+      chunkSize: 1,
+    };
+
+    // =========================
+    // Core playback
+    // =========================
+    function rebuild(){
+      const tokens = splitIntoTokens(els.textInput.value || "");
+      app.words = tokensToWords(tokens);
+
+      // Remove leading/trailing paragraph markers
+      while (app.words.length && app.words[0].isPara) app.words.shift();
+      while (app.words.length && app.words[app.words.length - 1].isPara) app.words.pop();
+
+      app.idx = 0;
+      updateHud();
+      renderCurrent();
+    }
+
+    function getSettings(){
+      const pivotMode = els.pivotPos.value; // spritz | center | custom
+      const pivotPct = Number(els.pivotPct.value || 40);
+      const pivotColor = els.pivotColor.value || "#ff4aa3";
+      const punctOn = els.punctMode.value === "on";
+      const longOn = els.longMode.value === "on";
+      const paraOn = els.paraMode.value === "on";
+      const jump = Number(els.jumpSelect.value || 10);
+      const ramp = els.rampMode.value;
+      const maxWpm = clamp(Number(els.maxWpmNum.value || 700), 10, 3000);
+
+      return { pivotMode, pivotPct, pivotColor, punctOn, longOn, paraOn, jump, ramp, maxWpm };
+    }
+
+    function baseDelayMs(wpm, wordsInChunk){
+      const perWord = 60000 / Math.max(1, wpm);
+      return perWord * Math.max(1, wordsInChunk);
+    }
+
+    function computeDelayMs(chunkItems){
+      const { punctOn, longOn, paraOn } = getSettings();
+      const wpm = app.wpm;
+
+      // paragraph marker chunk: pause
+      if (chunkItems.some(it => it.isPara)){
+        const ms = baseDelayMs(wpm, Math.max(1, app.chunkSize));
+        return paraOn ? ms * 2.2 : ms;
+      }
+
+      // Determine modifiers based on the last displayed word (most natural pause cue).
+      const last = chunkItems[chunkItems.length - 1]?.text || "";
+      let ms = baseDelayMs(wpm, chunkItems.length);
+
+      if (punctOn){
+        if (endsWithStrongPunct(last)) ms *= 1.85;
+        else if (endsWithMediumPunct(last)) ms *= 1.35;
+        else if (endsWithDash(last)) ms *= 1.20;
+      }
+
+      if (longOn){
+        // Add slight slowdown proportional to longest core word length in chunk
+        const maxLen = Math.max(...chunkItems.map(it => coreWordLength(it.text)));
+        if (maxLen >= 12) ms *= 1.25;
+        else if (maxLen >= 9) ms *= 1.12;
+      }
+
+      // Clamp to avoid absurdly short/long timing
+      return clamp(ms, 35, 3500);
+    }
+
+    function renderChunk(chunkItems){
+      const { pivotMode, pivotPct, pivotColor } = getSettings();
+      if (!chunkItems.length){
+        els.wordBox.textContent = "";
+        return;
+      }
+
+      if (chunkItems.some(it => it.isPara)){
+        // paragraph pause display: subtle marker
+        els.wordBox.innerHTML = `<span style="color:rgba(255,255,255,0.35); font-weight:700;">—</span>`;
+        return;
+      }
+
+      // Render each word with pivot highlighting
+      const html = chunkItems.map(it => renderWordWithPivot(it.text, pivotColor, pivotMode, pivotPct)).join(`<span style="opacity:0.55;">&nbsp;</span>`);
+      els.wordBox.innerHTML = html;
+    }
+
+    function getNextChunk(){
+      const items = [];
+      let i = app.idx;
+
+      // If we're on a paragraph marker, show just that marker
+      if (app.words[i]?.isPara){
+        return [{ text:"", isPara:true }];
+      }
+
+      while (items.length < app.chunkSize && i < app.words.length){
+        const it = app.words[i];
+        if (it.isPara){
+          // stop before paragraph unless it's the first thing
+          if (items.length === 0) items.push(it);
+          break;
+        }
+        if (it.text){
+          items.push(it);
+        }
+        i++;
+      }
+      return items;
+    }
+
+    function advanceByChunk(){
+      // Advance idx by chunk size, but handle paragraph markers as 1 step.
+      if (app.idx >= app.words.length) return;
+
+      if (app.words[app.idx]?.isPara){
+        app.idx += 1;
+        return;
+      }
+
+      let advanced = 0;
+      while (advanced < app.chunkSize && app.idx < app.words.length){
+        if (app.words[app.idx].isPara) break;
+        app.idx += 1;
+        advanced += 1;
+      }
+    }
+
+    function renderCurrent(){
+      const chunk = getNextChunk();
+      renderChunk(chunk);
+      updateHud();
+    }
+
+    function updateHud(){
+      els.hudWpm.textContent = String(app.wpm);
+      els.hudChunk.textContent = String(app.chunkSize);
+      els.hudIdx.textContent = String(app.idx);
+      els.hudTotal.textContent = String(app.words.length);
+      els.hudState.textContent = app.playing ? "Playing" : "Paused";
+    }
+
+    function stopTimers(){
+      if (app.timer) { clearTimeout(app.timer); app.timer = null; }
+      if (app.rampTimer) { clearInterval(app.rampTimer); app.rampTimer = null; }
+    }
+
+    function tick(){
+      if (!app.playing) return;
+
+      // End reached?
+      if (app.idx >= app.words.length){
+        app.playing = false;
+        stopTimers();
+        updateHud();
+        els.wordBox.innerHTML = `<span style="color:rgba(255,255,255,0.65); font-weight:800;">Done.</span>`;
+        if (app.quizEnabled) openQuiz();
+        return;
+      }
+
+      // Render current chunk
+      const chunk = getNextChunk();
+      renderChunk(chunk);
+      updateHud();
+
+      // Schedule next
+      const delay = computeDelayMs(chunk);
+      advanceByChunk();
+      app.timer = setTimeout(tick, delay);
+    }
+
+    function start(){
+      stopTimers();
+      if (!app.words.length) rebuild();
+      app.playing = true;
+      updateHud();
+
+      // start ramp if enabled
+      const { ramp, maxWpm } = getSettings();
+      if (ramp !== "off"){
+        const inc = ramp === "easy" ? 10 : ramp === "medium" ? 20 : 40; // wpm per minute
+        // increment every 5s to feel smooth: incPer5s = inc/12
+        const incPer5s = inc / 12;
+        app.rampTimer = setInterval(() => {
+          app.wpm = clamp(Math.round(app.wpm + incPer5s), 10, maxWpm);
+          syncWpmControlsFromState();
+          updateHud();
+        }, 5000);
+      }
+
+      tick();
+    }
+
+    function pause(){
+      app.playing = false;
+      stopTimers();
+      updateHud();
+    }
+
+    function reset(){
+      pause();
+      rebuild();
+      els.wordBox.textContent = "Press “Start”";
+    }
+
+    function jump(deltaWords){
+      // Jump by word units (not tokens). Respect bounds.
+      pause();
+      app.idx = clamp(app.idx + deltaWords, 0, Math.max(0, app.words.length - 1));
+      renderCurrent();
+    }
+
+    // =========================
+    // Comprehension Quiz (simple cloze MCQ)
+    // =========================
+    function openQuiz(){
+      const plain = (els.textInput.value || "").trim();
+      if (!plain){
+        return;
+      }
+      const { questions, answerKey } = buildClozeQuiz(plain, 3);
+      renderQuiz(questions);
+      els.overlay.classList.add("show");
+      els.overlay.dataset.answerKey = JSON.stringify(answerKey);
+      els.score.textContent = "Answer the questions, then submit.";
+    }
+
+    function closeQuiz(){
+      els.overlay.classList.remove("show");
+      els.quizBody.innerHTML = "";
+      delete els.overlay.dataset.answerKey;
+    }
+
+    function buildClozeQuiz(text, n=3){
+      // Split into sentences; pick random sentences; replace a medium-length word.
+      const sentences = (text
+        .replace(/\s+/g, " ")
+        .match(/[^.!?]+[.!?]+/g) || [text]).map(s => s.trim()).filter(Boolean);
+
+      // Build a pool of candidate words for distractors
+      const allWords = (text.match(/[A-Za-z0-9][A-Za-z0-9’'’-]*/g) || [])
+        .map(w => w.replace(/[’']/g,"'"))
+        .filter(w => w.length >= 4 && w.length <= 12);
+
+      const uniq = [...new Set(allWords.map(w => w.toLowerCase()))];
+      const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+      const questions = [];
+      const answerKey = [];
+
+      for (let i = 0; i < n; i++){
+        const s = sentences[Math.floor(Math.random() * sentences.length)] || "";
+        const words = (s.match(/[A-Za-z0-9][A-Za-z0-9’'’-]*/g) || [])
+          .filter(w => w.length >= 4 && w.length <= 12);
+
+        const target = words.length ? pick(words) : pick(allWords) || "reading";
+        const targetLower = target.toLowerCase();
+
+        // Build choices: correct + 3 distractors
+        const choices = new Set([targetLower]);
+        while (choices.size < 4 && uniq.length){
+          const d = pick(uniq);
+          if (d !== targetLower) choices.add(d);
+        }
+
+        const choiceArr = [...choices].map(w => {
+          // Preserve capitalization style if the original was capitalized
+          if (target[0] === target[0].toUpperCase()) return w[0].toUpperCase() + w.slice(1);
+          return w;
+        });
+
+        // Shuffle choices
+        for (let j = choiceArr.length - 1; j > 0; j--){
+          const k = Math.floor(Math.random() * (j + 1));
+          [choiceArr[j], choiceArr[k]] = [choiceArr[k], choiceArr[j]];
+        }
+
+        // Replace only first occurrence of target in sentence
+        const blanked = s.replace(new RegExp(`\\b${escapeRegExp(target)}\\b`), "____");
+
+        questions.push({
+          prompt: blanked,
+          choices: choiceArr
+        });
+        answerKey.push(target[0] === target[0].toUpperCase()
+          ? (targetLower[0].toUpperCase() + targetLower.slice(1))
+          : targetLower
+        );
+      }
+
+      return { questions, answerKey };
+    }
+
+    function escapeRegExp(str){
+      return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+
+    function renderQuiz(questions){
+      els.quizBody.innerHTML = "";
+      questions.forEach((q, qi) => {
+        const wrap = document.createElement("div");
+        wrap.className = "q";
+        wrap.innerHTML = `
+          <p><b>Q${qi+1}.</b> ${escapeHtml(q.prompt)}</p>
+          <div class="choices" data-q="${qi}">
+            ${q.choices.map((c, ci) => `
+              <label class="choice">
+                <input type="radio" name="q${qi}" value="${escapeHtml(c)}" />
+                <span>${escapeHtml(c)}</span>
+              </label>
+            `).join("")}
+          </div>
+        `;
+        els.quizBody.appendChild(wrap);
+      });
+    }
+
+    function gradeQuiz(){
+      const answerKey = JSON.parse(els.overlay.dataset.answerKey || "[]");
+      let correct = 0;
+      let answered = 0;
+
+      answerKey.forEach((ans, i) => {
+        const picked = document.querySelector(`input[name="q${i}"]:checked`);
+        if (picked){
+          answered++;
+          const val = picked.value;
+          if (val.toLowerCase() === ans.toLowerCase()) correct++;
+        }
+      });
+
+      const pct = answerKey.length ? Math.round((correct / answerKey.length) * 100) : 0;
+      let label = pct >= 80 ? "Strong" : pct >= 50 ? "Okay" : "Weak";
+      els.score.innerHTML = `Score: <b style="color:${pct>=80?'var(--ok)':pct>=50?'var(--warn)':'var(--bad)'}">${correct}/${answerKey.length}</b> (${pct}%) • <span style="color:var(--muted)">${label} comprehension</span>`;
+    }
+
+    // =========================
+    // UI wiring
+    // =========================
+    function syncWpmControlsFromState(){
+      els.wpmRange.value = String(app.wpm);
+      els.wpmNum.value = String(app.wpm);
+    }
+
+    function setWpm(val){
+      app.wpm = clamp(Math.round(Number(val || 320)), 10, 2000);
+      syncWpmControlsFromState();
+      updateHud();
+    }
+
+    function setChunkSize(val){
+      app.chunkSize = clamp(Number(val || 1), 1, 3);
+      updateHud();
+      renderCurrent();
+    }
+
+    function toggleQuiz(){
+      app.quizEnabled = !app.quizEnabled;
+      els.quizToggleBtn.textContent = `Quiz: ${app.quizEnabled ? "On" : "Off"}`;
+    }
+
+    // Events
+    els.startBtn.addEventListener("click", () => start());
+    els.pauseBtn.addEventListener("click", () => app.playing ? pause() : start());
+    els.resetBtn.addEventListener("click", () => reset());
+    els.quizToggleBtn.addEventListener("click", () => toggleQuiz());
+
+    els.textInput.addEventListener("input", () => {
+      // rebuild only when not playing
+      if (!app.playing) rebuild();
+    });
+
+    els.wpmRange.addEventListener("input", (e) => setWpm(e.target.value));
+    els.wpmNum.addEventListener("change", (e) => setWpm(e.target.value));
+
+    els.chunkSelect.addEventListener("change", (e) => setChunkSize(e.target.value));
+
+    els.pivotPos.addEventListener("change", () => {
+      els.pivotPctWrap.style.display = (els.pivotPos.value === "custom") ? "flex" : "none";
+      renderCurrent();
+    });
+    els.pivotPct.addEventListener("change", () => renderCurrent());
+    els.pivotColor.addEventListener("input", () => renderCurrent());
+
+    els.punctMode.addEventListener("change", () => {});
+    els.longMode.addEventListener("change", () => {});
+    els.paraMode.addEventListener("change", () => {});
+
+    els.submitQuiz.addEventListener("click", () => gradeQuiz());
+    els.closeQuiz.addEventListener("click", () => closeQuiz());
+    els.restart.addEventListener("click", () => { closeQuiz(); reset(); start(); });
+
+    // Keyboard shortcuts
+    window.addEventListener("keydown", (e) => {
+      // avoid hijacking when typing in inputs/textarea
+      const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+      const typing = (tag === "textarea" || tag === "input" || tag === "select");
+      if (typing) return;
+
+      const { jump } = getSettings();
+
+      if (e.code === "Space"){
+        e.preventDefault();
+        app.playing ? pause() : start();
+      } else if (e.key === "ArrowLeft"){
+        e.preventDefault();
+        jumpBy(-jump);
+      } else if (e.key === "ArrowRight"){
+        e.preventDefault();
+        jumpBy(jump);
+      } else if (e.key === "ArrowUp"){
+        e.preventDefault();
+        setWpm(app.wpm + 10);
+      } else if (e.key === "ArrowDown"){
+        e.preventDefault();
+        setWpm(app.wpm - 10);
+      } else if (e.key.toLowerCase() === "r"){
+        e.preventDefault();
+        reset();
+      } else if (e.key.toLowerCase() === "q"){
+        e.preventDefault();
+        toggleQuiz();
+      } else if (e.key === "Escape"){
+        if (els.overlay.classList.contains("show")) closeQuiz();
+      }
+    });
+
+    function jumpBy(delta){
+      // Jump by "word units" rather than raw words; paragraph markers count as 1.
+      // Convert requested jump in words to roughly same in word units by stepping.
+      pause();
+      const dir = Math.sign(delta);
+      const steps = Math.abs(delta);
+
+      let moved = 0;
+      let i = app.idx;
+      while (moved < steps){
+        i += dir;
+        if (i < 0 || i >= app.words.length) break;
+        // skip empty para? still counts as a step
+        moved++;
+      }
+      app.idx = clamp(i, 0, Math.max(0, app.words.length - 1));
+      renderCurrent();
+    }
+
+    // Init
+    function init(){
+      setWpm(els.wpmNum.value);
+      setChunkSize(els.chunkSelect.value);
+      rebuild();
+      els.quizToggleBtn.textContent = `Quiz: ${app.quizEnabled ? "On" : "Off"}`;
+      els.pivotPctWrap.style.display = (els.pivotPos.value === "custom") ? "flex" : "none";
+    }
+    init();
+  </script>
+</body>
+</html>
