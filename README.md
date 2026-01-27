@@ -1,4 +1,4 @@
-# RSVP Speed Reader (Pivot Letter + Smart Timing + Quiz)
+# RSVP Speed Reader
 
 A modern browser-based **RSVP (Rapid Serial Visual Presentation) speed reader** that improves readability and comprehension using pivot-letter anchoring, smart timing, chunked word display, and optional comprehension quizzes.
 
