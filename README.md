@@ -2,6 +2,9 @@
 
 A modern browser-based **RSVP (Rapid Serial Visual Presentation) speed reader** that improves readability and comprehension using pivot-letter anchoring, smart timing, chunked word display, and optional comprehension quizzes.
 
+Link to Live Version: https://kjregan120.github.io/RSVP_Speed_Reader/
+
+
 This project is a single-file HTML app with no dependencies — just open it in a browser and start reading.
 
 ---
